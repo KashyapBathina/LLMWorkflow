@@ -1,0 +1,479 @@
+{
+  "name": "My workflow 2",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "youtube-analysis",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "897b9cf5-0e29-4719-b58a-f7683385f29c",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        3600,
+        -440
+      ],
+      "webhookId": "93df8b84-0226-4ba3-a24d-e633f4481fac"
+    },
+    {
+      "parameters": {
+        "functionCode": "const inputData = $json.body || $json;\nconst url = inputData.url;\n\nif (!url) {\n  throw new Error('URL not found in input. Please provide a valid YouTube channel URL.');\n}\n\n// Handle both @username and channel ID formats\nlet channelUsername = '';\nlet channelId = '';\n\nif (url.includes('youtube.com/@')) {\n  channelUsername = url.split('youtube.com/@')[1].split(/[/?#]/)[0];\n  console.log('Username format detected:', channelUsername);\n  return [{ json: { channelUsername, url, lookupNeeded: true } }];\n} else if (url.includes('/channel/')) {\n  channelId = url.split('/channel/')[1].split(/[/?#]/)[0];\n  console.log('Channel ID format detected:', channelId);\n  // Direct channelId - bypass lookup completely\n  return [{ json: { channelId, url, lookupNeeded: false } }];\n} else if (url.includes('/user/')) {\n  channelUsername = url.split('/user/')[1].split(/[/?#]/)[0];\n  return [{ json: { channelUsername, url, lookupNeeded: true } }];\n} else if (url.includes('youtube.com/c/')) {\n  channelUsername = url.split('youtube.com/c/')[1].split(/[/?#]/)[0];\n  return [{ json: { channelUsername, url, lookupNeeded: true } }];\n} else {\n  // Assume it's a channel name or search query\n  return [{ json: { lookupNeeded: true, query: url } }];\n}"
+      },
+      "id": "5b502efe-326e-4da8-86ab-59bed028fe4f",
+      "name": "Parse Link",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        3800,
+        -440
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Determine if we need to convert username to channel ID\nif ($json.channelId) {\n  // We already have the channel ID\n  return [{ json: { channelId: $json.channelId, lookupNeeded: false } }];\n} else if ($json.channelUsername || $json.query) {\n  // We need to look up the channel ID from the username\n  return [{ json: { channelUsername: $json.channelUsername || $json.query, lookupNeeded: true } }];\n} else {\n  throw new Error('Neither channel ID nor username found in the parsed URL');\n}"
+      },
+      "id": "e1968d72-2bd5-4cb1-932a-41d27fe382a0",
+      "name": "Channel ID Logic",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        4000,
+        -440
+      ],
+      "outputs": 1
+    },
+    {
+      "parameters": {
+        "dataType": "boolean",
+        "value1": "={{$json.lookupNeeded}}",
+        "rules": {
+          "rules": [
+            {
+              "value2": true
+            },
+            {}
+          ]
+        }
+      },
+      "id": "6c248bce-af21-4e60-996d-c0142d5e9450",
+      "name": "Channel Route Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        4140,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q={{$json.channelUsername || $json.query}}&key=AIzaSyBpJbjQVkDeXfcUCxwPUxWz1mt9Ss3Rxpk&maxResults=1",
+        "options": {}
+      },
+      "id": "8a89b1d4-9662-43ed-9991-79c8010d914d",
+      "name": "Lookup Channel ID",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        4200,
+        -540
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract channel ID from search results\nif ($json.items && $json.items.length > 0) {\n  const channelId = $json.items[0].id.channelId;\n  return [{ json: { channelId } }];\n} else {\n  throw new Error('Channel not found for the given username.');\n}"
+      },
+      "id": "d8442bca-721b-4031-9faf-4cbadeb56a7e",
+      "name": "Extract Channel ID",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        4400,
+        -540
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id={{$json.channelId}}&key=AIzaSyBpJbjQVkDeXfcUCxwPUxWz1mt9Ss3Rxpk",
+        "options": {}
+      },
+      "id": "1f9a539e-1959-4d4a-aba6-08d504c939c3",
+      "name": "Get Channel Info",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        4600,
+        -440
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/youtube/v3/search?part=id&channelId={{$json.channelId}}&order=date&maxResults=10&type=video&key=AIzaSyBpJbjQVkDeXfcUCxwPUxWz1mt9Ss3Rxpk",
+        "options": {}
+      },
+      "id": "488a3481-14d5-4752-b28d-7e73939c2812",
+      "name": "Get Recent Videos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        4600,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract video IDs\nif (!$json.items || $json.items.length === 0) {\n  return [{ json: { videoIds: '', error: 'No videos found' } }];\n}\n\nconst ids = $json.items.map(i => i.id.videoId).join(',');\nreturn [{ json: { videoIds: ids } }];"
+      },
+      "id": "04e539bc-9810-493a-a978-532ec716ca39",
+      "name": "Collect IDs",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        4800,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id={{$json.videoIds}}&key=AIzaSyBpJbjQVkDeXfcUCxwPUxWz1mt9Ss3Rxpk",
+        "options": {}
+      },
+      "id": "c91bdb3b-837b-4143-9494-19155847efef",
+      "name": "Get Video Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        5000,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Combine channel and video data\nconst channelData = $items('Get Channel Info')[0].json;\nconst videoData = $json;\n\nif (!channelData.items || channelData.items.length === 0) {\n  throw new Error('No channel data found');\n}\n\nconst ch = channelData.items[0];\nconst vids = videoData.items || [];\n\n// Basic stats\nconst stats = {\n  name: ch.snippet.title,\n  id: ch.id,\n  publishedAt: ch.snippet.publishedAt,\n  subscribers: parseInt(ch.statistics.subscriberCount) || 0,\n  videoCount: parseInt(ch.statistics.videoCount) || 0,\n  viewCount: parseInt(ch.statistics.viewCount) || 0\n};\n\n// Content metrics\nlet content = { avgLikes: 0, postingFreqDays: 0, engagement: 0 };\n\nif (vids.length > 0) {\n  const totalLikes = vids.reduce((sum, v) => sum + (parseInt(v.statistics.likeCount) || 0), 0);\n  const totalViews = vids.reduce((sum, v) => sum + (parseInt(v.statistics.viewCount) || 0), 0);\n  const avgLikes = Math.round(totalLikes / vids.length);\n  const avgViews = Math.round(totalViews / vids.length);\n  \n  // Calculate posting frequency\n  const dates = vids.map(v => new Date(v.snippet.publishedAt));\n  const oldestDate = new Date(Math.min(...dates));\n  const freqDays = ((Date.now() - oldestDate) / (1000 * 60 * 60 * 24)) / vids.length;\n  \n  // Average engagement rate (likes per view)\n  const engagement = (totalLikes / totalViews * 100).toFixed(2);\n  \n  content = {\n    avgLikes,\n    avgViews,\n    postingFreqDays: freqDays.toFixed(1),\n    engagement: engagement + '%'\n  };\n}\n\n// Extract common tags and topics\nconst allTags = vids.flatMap(v => v.snippet.tags || []);\nconst tagCount = {};\nallTags.forEach(tag => {\n  tagCount[tag] = (tagCount[tag] || 0) + 1;\n});\n\n// Sort tags by frequency\nconst topTags = Object.entries(tagCount)\n  .sort((a, b) => b[1] - a[1])\n  .slice(0, 5)\n  .map(([tag]) => tag);\n\ncontent.topTags = topTags;\n\n// Final output\nreturn [{ json: { stats, content, recentVideos: vids.slice(0, 5).map(v => ({ \n  title: v.snippet.title,\n  publishedAt: v.snippet.publishedAt,\n  views: v.statistics.viewCount,\n  likes: v.statistics.likeCount,\n  url: `https://www.youtube.com/watch?v=${v.id}`\n})) } }];"
+      },
+      "id": "7371a631-698d-4f64-b870-a37232c92009",
+      "name": "Compute Metrics",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        5200,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "openai/gpt-3.5-turbo",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a YouTube analytics expert who provides insightful channel analysis reports."
+            },
+            {
+              "role": "user",
+              "content": "={{`Generate a comprehensive YouTube channel analysis report using the following data: Basic stats: Subscribers: ${$json.stats.subscribers}, Views: ${$json.stats.viewCount}, Videos: ${$json.stats.videoCount}. Content metrics: AvgViews: ${$json.content.avgViews}, AvgLikes: ${$json.content.avgLikes}, Engagement: ${$json.content.engagement}. Provide a well-structured analysis that includes: 1. Channel overview & performance summary 2. Content strategy analysis 3. Audience engagement assessment 4. Competitive positioning within their niche 5. Growth trends and opportunities.`}}"
+            }
+          ],
+          "temperature": 0.3,
+          "max_tokens": 1000
+        },
+        "options": {
+          "redirect": {}
+        }
+      },
+      "id": "851c5ad3-f0a7-46d2-8113-0d8daa7e46f2",
+      "name": "Analysis Report LLM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        5400,
+        -500
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "jU9ej27L8ROGDMQk",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "openai/gpt-3.5-turbo",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a YouTube content strategist who specializes in creating viral content ideas."
+            },
+            {
+              "role": "user",
+              "content": "Based on this YouTube channel's stats and metrics, suggest 5 specific viral content ideas that would work well for this creator.\n\nChannel stats: {{$json.stats}}\nContent metrics: {{$json.content}}\nRecent videos: {{$json.recentVideos}}"
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 1000
+        },
+        "options": {
+          "redirect": {}
+        }
+      },
+      "id": "713a3875-b860-40fd-86a8-c556287e3376",
+      "name": "Prompt Suggestions LLM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        5400,
+        -340
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "jU9ej27L8ROGDMQk",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "openai/gpt-3.5-turbo",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are an expert YouTube copywriter who can create engaging video titles and descriptions."
+            },
+            {
+              "role": "user",
+              "content": "Based on the recent videos from this YouTube channel, create 5 fresh title and description combinations that maintain the channel's style but could improve click-through rates.\n\nRecent videos: {{$json.recentVideos}}\n\nFor each recommendation, provide:\n1. Original title\n2. Improved title\n3. Compelling description (2-3 sentences)\n4. Tags to include\n\nMake sure the new titles and descriptions are optimized for search but still authentic to the channel's voice."
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 1000
+        },
+        "options": {
+          "redirect": {}
+        }
+      },
+      "id": "f9968a62-a854-418f-bcd1-8656a4099a44",
+      "name": "Copywriting LLM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        5400,
+        -200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "jU9ej27L8ROGDMQk",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "const analysis=$node['Analysis Report LLM'].json.choices[0].message.content;const ideas=$node['Prompt Suggestions LLM'].json.choices[0].message.content;const copy=$node['Copywriting LLM'].json.choices[0].message.content;const name=$node['Compute Metrics'].json.stats.name;return[{json:{channelName:name,channelAnalysis:analysis,contentIdeas:ideas,copywritingSuggestions:copy}}];"
+      },
+      "id": "987e1fb7-1642-40e0-afd1-1f5678835a41",
+      "name": "Compile Final Report",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        5600,
+        -340
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Link": {
+      "main": [
+        [
+          {
+            "node": "Channel ID Logic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Channel ID Logic": {
+      "main": [
+        [
+          {
+            "node": "Channel Route Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Channel Route Switch": {
+      "main": [
+        [
+          {
+            "node": "Lookup Channel ID",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Channel Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Channel ID": {
+      "main": [
+        [
+          {
+            "node": "Extract Channel ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Channel ID": {
+      "main": [
+        [
+          {
+            "node": "Get Channel Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Channel Info": {
+      "main": [
+        [
+          {
+            "node": "Get Recent Videos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Recent Videos": {
+      "main": [
+        [
+          {
+            "node": "Collect IDs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect IDs": {
+      "main": [
+        [
+          {
+            "node": "Get Video Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Video Stats": {
+      "main": [
+        [
+          {
+            "node": "Compute Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Metrics": {
+      "main": [
+        [
+          {
+            "node": "Analysis Report LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analysis Report LLM": {
+      "main": [
+        [
+          {
+            "node": "Prompt Suggestions LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prompt Suggestions LLM": {
+      "main": [
+        [
+          {
+            "node": "Copywriting LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Copywriting LLM": {
+      "main": [
+        [
+          {
+            "node": "Compile Final Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "ab2972ab-f407-4c5e-b3b6-ddf4fe459542",
+  "meta": {
+    "instanceId": "930d35e91f1994bb93dae17a1bc280ca3569d3b29aafb73c4e112e24ab449354"
+  },
+  "id": "QmD7G1RHsPdluWhM",
+  "tags": []
+}

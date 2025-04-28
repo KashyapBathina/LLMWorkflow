@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Channel Analyzer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1, h2, h3 {
+            color: #c4302b; /* YouTube red */
+        }
+        form {
+            margin-bottom: 20px;
+        }
+        input[type="text"] {
+            width: 70%;
+            padding: 10px;
+            font-size: 16px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #c4302b;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #9c261f;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .loading {
+            text-align: center;
+            color: #666;
+        }
+        .error {
+            color: #c4302b;
+            font-weight: bold;
+        }
+        .section {
+            margin-top: 20px;
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+        }
+        pre {
+            white-space: pre-wrap;
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>YouTube Channel Analyzer</h1>
+    <p>Enter a YouTube channel URL to analyze its performance, content strategy, and get recommendations.</p>
+    
+    <form id="youtubeForm">
+        <input type="text" id="url" placeholder="Enter YouTube channel URL (e.g., https://www.youtube.com/@cristiano)" 
+               value="https://www.youtube.com/@cristiano">
+        <button type="submit">Analyze Channel</button>
+    </form>
+    
+    <div id="result" class="loading">Enter a YouTube channel URL and click "Analyze Channel" to begin...</div>
+    
+    <script>
+        document.getElementById('youtubeForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const url = document.getElementById('url').value.trim();
+            const result = document.getElementById('result');
+            
+            if (!url) {
+                result.innerHTML = '<p class="error">Please enter a YouTube channel URL</p>';
+                return;
+            }
+            
+            // Show loading message
+            result.innerHTML = '<p class="loading">Analyzing channel... This may take up to 30 seconds...</p>';
+            
+            // try {
+            //     // 1) Send the request
+            //     const webhookUrl = 'http://localhost:5678/webhook/youtube-analysis';
+            //     const response = await fetch(webhookUrl, {
+            //     method: 'POST',
+            //     headers: { 'Content-Type': 'application/json' },
+            //     body: JSON.stringify({ url }),
+            //     });
+            //     if (!response.ok) throw new Error(`Status ${response.status}`);
+
+            //     // unwrap the single‐item array
+            //     const raw = await response.json();
+            //     const data = Array.isArray(raw) ? raw[0] : raw;
+
+            //     // render flat fields
+            //     result.innerHTML = `
+            //     <h2>Analysis Results for ${data.channelName}</h2>
+
+            //     <div class="section">
+            //     <h3>Channel Analysis</h3>
+            //     <pre>${data.channelAnalysis}</pre>
+            //     </div>
+
+            //     <div class="section">
+            //     <h3>Content Ideas</h3>
+            //     <pre>${data.contentIdeas}</pre>
+            //     </div>
+
+            //     <div class="section">
+            //     <h3>Copywriting Suggestions</h3>
+            //     <pre>${data.copywritingSuggestions}</pre>
+            //     </div>
+            //     `;
+                
+                
+            // } catch (error) {
+            //     result.innerHTML = `<p class="error">Error: ${error.message}</p>
+            //                         <p>Make sure your n8n workflow is running and the webhook URL is correct.</p>`;
+            //     console.error('Error:', error);
+            // }
+
+
+
+            try {
+                const webhookUrl = 'http://localhost:5678/webhook/youtube-analysis';
+            const response = await fetch(webhookUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url }),
+            });
+            if (!response.ok) throw new Error(`Status ${response.status}`);
+
+            const raw = await response.json();
+            let item = Array.isArray(raw) ? raw[0] : raw;
+            let data = item.json !== undefined ? item.json : item;
+
+            result.innerHTML = `
+                <h2>Analysis Results for ${data.channelName}</h2>
+                <div class="section">
+                <h3>Channel Analysis</h3>
+                <pre>${data.channelAnalysis}</pre>
+                </div>
+                <div class="section">
+                <h3>Content Ideas</h3>
+                <pre>${data.contentIdeas}</pre>
+                </div>
+                <div class="section">
+                <h3>Copywriting Suggestions</h3>
+                <pre>${data.copywritingSuggestions}</pre>
+                </div>
+            `;
+            } catch (error) {
+            result.innerHTML = `<p class="error">Error: ${error.message}</p>
+                                <p>Make sure your n8n workflow is running…</p>`;
+            console.error(error);
+            }
+
+        });
+    </script>
+</body>
+</html>

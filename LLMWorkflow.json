@@ -1,0 +1,438 @@
+{
+  "name": "My workflow 2",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "youtube-analysis",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "20f79e2d-3999-4fe3-959d-133ba779668f",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        2540,
+        -600
+      ],
+      "webhookId": "9f815c52-5d50-45d8-a8a0-e823f58e82ae"
+    },
+    {
+      "parameters": {
+        "functionCode": "const inputData = $json.body || $json;\nconst url = inputData.url;\n\nif (!url) {\n  throw new Error('URL not found in input. Please provide a valid YouTube channel URL.');\n}\n\n// Handle both @username and channel ID formats\nlet channelUsername = '';\nlet channelId = '';\n\nif (url.includes('youtube.com/@')) {\n  channelUsername = url.split('youtube.com/@')[1].split(/[/?#]/)[0];\n  return [{ json: { channelUsername, url } }];\n} else if (url.includes('/channel/')) {\n  channelId = url.split('/channel/')[1].split(/[/?#]/)[0];\n  return [{ json: { channelId, url } }];\n} else if (url.includes('/user/')) {\n  channelUsername = url.split('/user/')[1].split(/[/?#]/)[0];\n  return [{ json: { channelUsername, url } }];\n} else if (url.includes('youtube.com/c/')) {\n  channelUsername = url.split('youtube.com/c/')[1].split(/[/?#]/)[0];\n  return [{ json: { channelUsername, url } }];\n} else {\n  // Assume it's a channel name or search query\n  return [{ json: { lookupNeeded: true, query: url } }];\n}"
+      },
+      "id": "05215f2d-f8c6-49a9-ae3f-edd2268dff20",
+      "name": "Parse Link",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2740,
+        -600
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Determine if we need to convert username to channel ID\nif ($json.channelId) {\n  // We already have the channel ID\n  return [{ json: { channelId: $json.channelId } }];\n} else if ($json.channelUsername) {\n  // We need to look up the channel ID from the username\n  return [{ json: { lookupNeeded: true, channelUsername: $json.channelUsername } }];\n} else if ($json.query) {\n  // We need to look up the channel ID from a query\n  return [{ json: { lookupNeeded: true, channelUsername: $json.query } }];\n} else {\n  throw new Error('Neither channel ID nor username found in the parsed URL');\n}"
+      },
+      "id": "f2484971-f332-4734-bb52-4a0126b97024",
+      "name": "Channel ID Logic",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2940,
+        -600
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q={{$json.channelUsername}}&key=AIzaSyBpJbjQVkDeXfcUCxwPUxWz1mt9Ss3Rxpk&maxResults=1",
+        "options": {}
+      },
+      "id": "4b6b3cf1-ef5a-4b56-a220-51c581b3dd64",
+      "name": "Lookup Channel ID",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        3140,
+        -700
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract channel ID from search results\nif ($json.items && $json.items.length > 0) {\n  const channelId = $json.items[0].id.channelId;\n  return [{ json: { channelId } }];\n} else {\n  throw new Error('Channel not found for the given username.');\n}"
+      },
+      "id": "c5d3460e-9133-431e-84d9-46840b129bf9",
+      "name": "Extract Channel ID",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        3340,
+        -700
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id={{$json.channelId}}&key=AIzaSyBpJbjQVkDeXfcUCxwPUxWz1mt9Ss3Rxpk",
+        "options": {}
+      },
+      "id": "41c7d237-8fb6-4eff-a0c4-ebfbc9fae2c7",
+      "name": "Get Channel Info",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        3540,
+        -600
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/youtube/v3/search?part=id&channelId={{$json.channelId}}&order=date&maxResults=10&type=video&key=AIzaSyBpJbjQVkDeXfcUCxwPUxWz1mt9Ss3Rxpk",
+        "options": {}
+      },
+      "id": "ac7b5be3-7448-4feb-ba4b-5344aeb75d09",
+      "name": "Get Recent Videos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        3540,
+        -460
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract video IDs\nif (!$json.items || $json.items.length === 0) {\n  return [{ json: { videoIds: '', error: 'No videos found' } }];\n}\n\nconst ids = $json.items.map(i => i.id.videoId).join(',');\nreturn [{ json: { videoIds: ids } }];"
+      },
+      "id": "e2aef571-0d5c-4a7f-9d7c-bc0d7e6ed326",
+      "name": "Collect IDs",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        3740,
+        -460
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id={{$json.videoIds}}&key=AIzaSyBpJbjQVkDeXfcUCxwPUxWz1mt9Ss3Rxpk",
+        "options": {}
+      },
+      "id": "a1dc1bf1-80df-43cf-89a4-73b5306280fa",
+      "name": "Get Video Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        3940,
+        -460
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Combine channel and video data\nconst channelData = $items('Get Channel Info')[0].json;\nconst videoData = $json;\n\nif (!channelData.items || channelData.items.length === 0) {\n  throw new Error('No channel data found');\n}\n\nconst ch = channelData.items[0];\nconst vids = videoData.items || [];\n\n// Basic stats\nconst stats = {\n  name: ch.snippet.title,\n  id: ch.id,\n  publishedAt: ch.snippet.publishedAt,\n  subscribers: parseInt(ch.statistics.subscriberCount) || 0,\n  videoCount: parseInt(ch.statistics.videoCount) || 0,\n  viewCount: parseInt(ch.statistics.viewCount) || 0\n};\n\n// Content metrics\nlet content = { avgLikes: 0, postingFreqDays: 0, engagement: 0 };\n\nif (vids.length > 0) {\n  const totalLikes = vids.reduce((sum, v) => sum + (parseInt(v.statistics.likeCount) || 0), 0);\n  const totalViews = vids.reduce((sum, v) => sum + (parseInt(v.statistics.viewCount) || 0), 0);\n  const avgLikes = Math.round(totalLikes / vids.length);\n  const avgViews = Math.round(totalViews / vids.length);\n  \n  // Calculate posting frequency\n  const dates = vids.map(v => new Date(v.snippet.publishedAt));\n  const oldestDate = new Date(Math.min(...dates));\n  const freqDays = ((Date.now() - oldestDate) / (1000 * 60 * 60 * 24)) / vids.length;\n  \n  // Average engagement rate (likes per view)\n  const engagement = (totalLikes / totalViews * 100).toFixed(2);\n  \n  content = {\n    avgLikes,\n    avgViews,\n    postingFreqDays: freqDays.toFixed(1),\n    engagement: engagement + '%'\n  };\n}\n\n// Extract common tags and topics\nconst allTags = vids.flatMap(v => v.snippet.tags || []);\nconst tagCount = {};\nallTags.forEach(tag => {\n  tagCount[tag] = (tagCount[tag] || 0) + 1;\n});\n\n// Sort tags by frequency\nconst topTags = Object.entries(tagCount)\n  .sort((a, b) => b[1] - a[1])\n  .slice(0, 5)\n  .map(([tag]) => tag);\n\ncontent.topTags = topTags;\n\n// Final output\nreturn [{ json: { stats, content, recentVideos: vids.slice(0, 5).map(v => ({ \n  title: v.snippet.title,\n  publishedAt: v.snippet.publishedAt,\n  views: v.statistics.viewCount,\n  likes: v.statistics.likeCount,\n  url: `https://www.youtube.com/watch?v=${v.id}`\n})) } }];"
+      },
+      "id": "04457be2-f8f7-4d3f-9687-6cffc8dbedb0",
+      "name": "Compute Metrics",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        4140,
+        -560
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "openai/gpt-3.5-turbo",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a YouTube analytics expert who provides insightful channel analysis reports."
+            },
+            {
+              "role": "user",
+              "content": "={{`Generate a comprehensive YouTube channel analysis report using the following data: Basic stats: Subscribers: ${$json.stats.subscribers}, Views: ${$json.stats.viewCount}, Videos: ${$json.stats.videoCount}. Content metrics: AvgViews: ${$json.content.avgViews}, AvgLikes: ${$json.content.avgLikes}, Engagement: ${$json.content.engagement}. Provide a well-structured analysis that includes: 1. Channel overview & performance summary 2. Content strategy analysis 3. Audience engagement assessment 4. Competitive positioning within their niche 5. Growth trends and opportunities.`}}"
+            }
+          ],
+          "temperature": 0.3,
+          "max_tokens": 1000
+        },
+        "options": {
+          "redirect": {}
+        }
+      },
+      "id": "2dd673b1-cd30-4f4c-94a3-7ab9e28de402",
+      "name": "Analysis Report LLM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        4340,
+        -660
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "jU9ej27L8ROGDMQk",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "openai/gpt-3.5-turbo",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a YouTube content strategist who specializes in creating viral content ideas."
+            },
+            {
+              "role": "user",
+              "content": "Based on this YouTube channel's stats and metrics, suggest 5 specific viral content ideas that would work well for this creator.\n\nChannel stats: {{$json.stats}}\nContent metrics: {{$json.content}}\nRecent videos: {{$json.recentVideos}}"
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 1000
+        },
+        "options": {
+          "redirect": {}
+        }
+      },
+      "id": "006e93cf-2082-47d3-a8bd-753a8d9f29e0",
+      "name": "Prompt Suggestions LLM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        4340,
+        -500
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "jU9ej27L8ROGDMQk",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": {
+          "model": "openai/gpt-3.5-turbo",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are an expert YouTube copywriter who can create engaging video titles and descriptions."
+            },
+            {
+              "role": "user",
+              "content": "Based on the recent videos from this YouTube channel, create 5 fresh title and description combinations that maintain the channel's style but could improve click-through rates.\n\nRecent videos: {{$json.recentVideos}}\n\nFor each recommendation, provide:\n1. Original title\n2. Improved title\n3. Compelling description (2-3 sentences)\n4. Tags to include\n\nMake sure the new titles and descriptions are optimized for search but still authentic to the channel's voice."
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 1000
+        },
+        "options": {
+          "redirect": {}
+        }
+      },
+      "id": "b266d992-31d1-4bb8-9a1a-9b564c7788b6",
+      "name": "Copywriting LLM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        4340,
+        -360
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "jU9ej27L8ROGDMQk",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "const analysis=$node['Analysis Report LLM'].json.choices[0].message.content;const ideas=$node['Prompt Suggestions LLM'].json.choices[0].message.content;const copy=$node['Copywriting LLM'].json.choices[0].message.content;const name=$node['Compute Metrics'].json.stats.name;return[{json:{channelName:name,channelAnalysis:analysis,contentIdeas:ideas,copywritingSuggestions:copy}}];"
+      },
+      "id": "14ce591a-eb55-4ca0-b957-390ceb1d34ca",
+      "name": "Compile Final Report",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        4540,
+        -500
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Link": {
+      "main": [
+        [
+          {
+            "node": "Channel ID Logic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Channel ID Logic": {
+      "main": [
+        [
+          {
+            "node": "Get Channel Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Channel ID": {
+      "main": [
+        [
+          {
+            "node": "Extract Channel ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Channel ID": {
+      "main": [
+        [
+          {
+            "node": "Get Channel Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Channel Info": {
+      "main": [
+        [
+          {
+            "node": "Get Recent Videos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Recent Videos": {
+      "main": [
+        [
+          {
+            "node": "Collect IDs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect IDs": {
+      "main": [
+        [
+          {
+            "node": "Get Video Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Video Stats": {
+      "main": [
+        [
+          {
+            "node": "Compute Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Metrics": {
+      "main": [
+        [
+          {
+            "node": "Analysis Report LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analysis Report LLM": {
+      "main": [
+        [
+          {
+            "node": "Prompt Suggestions LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prompt Suggestions LLM": {
+      "main": [
+        [
+          {
+            "node": "Copywriting LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Copywriting LLM": {
+      "main": [
+        [
+          {
+            "node": "Compile Final Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "90bceecd-76b0-4f5f-9a5d-cd8657ae0499",
+  "meta": {
+    "instanceId": "930d35e91f1994bb93dae17a1bc280ca3569d3b29aafb73c4e112e24ab449354"
+  },
+  "id": "QmD7G1RHsPdluWhM",
+  "tags": []
+}
