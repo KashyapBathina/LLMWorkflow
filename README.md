@@ -1,0 +1,2 @@
+Single, end-to-end n8n workflow that accepts a YouTube URL, parses out the channel identifier, fetches channel and recent-video data via the YouTube API, computes engagement metrics in a Function node, then triggers three separate LLM calls—analysis report, content‐idea prompts, and copywriting suggestions—and finally compiles their outputs into one JSON payload returned by the webhook. To demo it quickly and cleanly, I also created a simple HTML front end that posts to the webhook and renders the results on the page.
+
